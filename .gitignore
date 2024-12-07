@@ -1,0 +1,8 @@
+.env
+bin
+bstandingwhisky
+lib
+lib64
+venv
+pyvenv.cfg
+last_post_id.txt
