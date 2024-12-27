@@ -4,18 +4,34 @@ import instaloader
 import json
 import requests
 import lzma
+import base64
+import re
+import random
+import logging
 
 # File to store the last downloaded post ID
 LAST_POST_FILE = "last_post_id.txt"
 
 
 # Load environment variables from the .env file
-load_dotenv()
+load_dotenv(override=True)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("instadram.log"),
+        logging.StreamHandler()
+    ]
+)
 
 instagram_username = os.getenv("INSTA_NAME")
 wordpress_url = os.getenv("WP_URL")
 wp_username = os.getenv("WP_USER")
 wp_application_password = os.getenv("WP_PASS")
+
+
 
 # Initialize variables
 new_posts_downloaded = 0
@@ -32,7 +48,7 @@ def extractfiles(path):
                 with open(output_file, "wb") as decompressed_file:
                     decompressed_file.write(compressed_file.read())
 
-            print(f"Decompressed {input_file}")
+            logging.info(f"Decompressed {input_file}")
 
 
 def get_last_post_id():
@@ -57,7 +73,7 @@ def download_new_posts(username, max=0):
 
     # Get the last downloaded post ID
     last_post_id = get_last_post_id()
-    print(f"Last downloaded post ID: {last_post_id}")
+    logging.info(f"Last downloaded post ID: {last_post_id}")
 
     try:
         # Fetch posts from the user's profile
@@ -82,33 +98,33 @@ def download_new_posts(username, max=0):
             save_last_post_id(last_fetched_post_id)
 
         if new_posts_downloaded > 0:
-            print(f"{new_posts_downloaded} new posts downloaded.")
+            logging.info(f"{new_posts_downloaded} new posts downloaded.")
             extractfiles('./'+instagram_username)
         else:
-            print("No new posts found.")
+            logging.warning("No new posts found.")
 
     except Exception as e:
+        logging.error(f"An error occurred: {e}")
+
+
+# Download Instagram posts
+def download_instagram_posts(username):
+    loader = instaloader.Instaloader()
+    try:
+        # Download posts of the given username
+        print(f"Downloading posts from @{username}...")
+        loader.download_profile(username, profile_pic=False, posts=True)
+        print(f"Download complete. Posts saved in the current directory.")
+        return f"./{username}"  # Folder path of the downloaded content
+    except Exception as e:
         print(f"An error occurred: {e}")
-
-
-# # Download Instagram posts
-# def download_instagram_posts(username):
-#     loader = instaloader.Instaloader()
-#     try:
-#         # Download posts of the given username
-#         print(f"Downloading posts from @{username}...")
-#         loader.download_profile(username, profile_pic=False, posts=True)
-#         print(f"Download complete. Posts saved in the current directory.")
-#         return f"./{username}"  # Folder path of the downloaded content
-#     except Exception as e:
-#         print(f"An error occurred: {e}")
-#         return None
+        return None
 
 # Parse downloaded Instagram data
 def parse_instagram_data(folder_path):
     posts_data = []
     if not os.path.exists(folder_path):
-        print(f"Folder not found: {folder_path}")
+        logging.warning(f"Folder not found: {folder_path}")
         return []
 
     for root, _, files in os.walk(folder_path):
@@ -119,54 +135,131 @@ def parse_instagram_data(folder_path):
                     image_path = os.path.join(root, file.replace(".json", ".jpg"))
                     if os.path.exists(image_path):
                         posts_data.append({
-                            "caption": post_data.get("edge_media_to_caption", {}).get("edges", [{}])[0].get("node", {}).get("text", ""),
+                            # "caption": post_data.get("edge_media_to_caption", {}).get("edges", [{}])[0].get("node", {}).get("text", ""),
+                            "caption": post_data.get("node", {}).get("caption", ""),
                             "image_path": image_path,
                         })
     return posts_data
 
 # Upload to WordPress
 def upload_to_wordpress(posts_data, wordpress_url, username, application_password):
+    # Upload media to WordPress
+    credentials = f"{username}:{application_password}"
+    token = base64.b64encode(credentials.encode())
+    authheaders = {"Authorization": f"Basic {token.decode('utf-8')}"}
+
+    distilleries = fetch_distilleries(authheaders)
+        
     for post in posts_data:
         try:
             with open(post["image_path"], "rb") as image_file:
-                # Upload media to WordPress
+                
                 media_response = requests.post(
                     f"{wordpress_url}/wp-json/wp/v2/media",
-                    headers={"Authorization": f"Basic {username}:{application_password}"},
+                    headers=authheaders,
                     files={"file": image_file},
                 )
                 if media_response.status_code == 201:
                     media_id = media_response.json()["id"]
                     # Create WordPress post
-                    post_data = {
-                        "title": "Instagram Post",
-                        "content": post["caption"],
-                        "status": "publish",
-                        "featured_media": media_id
-                    }
+                    pattern = r"^#(\w+)\s+(.*)\s+(\d{4}-\d{2}-\d{2})$"
+
+                    # Match the pattern
+                    match = re.match(pattern, post["caption"])
+
+                    if match:
+                        hashtag = match.group(1)
+                        remaining_text = match.group(2)
+                        date = match.group(3)
+                        datet = match.group(3) + f"T{random.randint(0, 23):02d}:{random.randint(0, 59):02d}" + ":00"
+
+                        distillery_name = find_distillery_by_name(distilleries, remaining_text)
+
+                        post_data = {
+                            "title": remaining_text,
+                            "status": "publish",
+                            "featured_media": media_id,
+                            "date": datet,
+                        }
+
+                        if distillery_name:
+                            post_data["distillery"] = distillery_name
+
+                        if hashtag == "in":
+                            post_data["date_bought"] = date
+                        elif hashtag == "open":
+                            post_data["date_opened"] = date
+                        elif hashtag == "out":
+                            post_data["date_finished"] = date
+
+                        logging.info(f"bits {date}")
+                    else:
+                        post_data = {
+                            "title": post["caption"],
+                            "status": "draft",
+                            "featured_media": media_id,
+                        }
+
                     post_response = requests.post(
-                        f"{wordpress_url}/wp-json/wp/v2/posts",
-                        headers={"Authorization": f"Basic {username}:{application_password}"},
+                        f"{wordpress_url}/wp-json/wp/v2/whisky_bottle",
+                        headers=authheaders,
                         json=post_data,
                     )
                     if post_response.status_code == 201:
-                        print(f"Post uploaded: {post_response.json().get('link')}")
+                        logging.info(f"Post uploaded: {post_response.json().get('link')}")
                     else:
-                        # print(f"Failed to create post: {post_response.status_code} - {post_response.text}")
-                        print(f"Failed to create post: {post_response.status_code}")
+                        logging.error(f"Failed to create post: {post_response.status_code} - {post_response.text}")
+                        # print(f"Failed to create post: {post_response.status_code}")
                 else:
-                    # print(f"Failed to upload media: {media_response.status_code} - {media_response.text}")
-                    print(f"Failed to upload media: {media_response.status_code}")
+                    logging.error(f"Failed to upload media: {media_response.status_code} - {media_response.text}")
+                    # print(f"Failed to upload media: {media_response.status_code}")
         except Exception as e:
-            print(f"An error occurred")
-            # print(f"An error occurred: {e}")
+            logging.error(f"An error occurred: {e}")
+
+def fetch_distilleries(authheaders):
+    """
+    Fetch the list of distilleries from the custom API endpoint.
+    Returns a list of distillery objects.
+    """
+    try:
+        distilleries_endpoint = f"{wordpress_url}/wp-json/whisky-bottle/v1/distilleries"
+        response = requests.get(distilleries_endpoint, headers=authheaders)
+
+        if response.status_code != 200:
+            print(f"Error retrieving distilleries: {response.status_code} - {response.text}")
+            return []
+
+        # Return the list of distilleries
+        return response.json()
+
+    except Exception as e:
+        print(f"An error occurred while fetching distilleries: {e}")
+        return []
+
+def find_distillery_by_name(distilleries, search_string):
+    """
+    Search the list of distilleries for a partial match in the search string.
+    Returns the first matching distillery name or empty string
+    """
+    search_string_lower = search_string.lower()
+
+    for distillery in distilleries:
+        distillery_name = distillery.get("name", "").lower()
+        if distillery_name in search_string_lower:
+            return distillery_name
+
+    return ""
+
+
 
 # Main script
 if __name__ == "__main__":
     # Step 1: Download Instagram posts
-    # folder = download_instagram_posts(instagram_username)
+    folder = download_instagram_posts(instagram_username)
+    download_new_posts(instagram_username)
+    # new_posts_downloaded is a global
     # download_new_posts(instagram_username, 5)
-    new_posts_downloaded = 5
+    # new_posts_downloaded = 5
     if new_posts_downloaded > 0:
         # Step 2: Parse Instagram data
         posts = parse_instagram_data('./'+instagram_username)
@@ -175,4 +268,4 @@ if __name__ == "__main__":
         if posts:
             upload_to_wordpress(posts, wordpress_url, wp_username, wp_application_password)
         else:
-            print("No posts found to upload.")
+            logging.warning("No posts found to upload.")
