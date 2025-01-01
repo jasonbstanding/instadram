@@ -113,7 +113,7 @@ def download_instagram_posts(username):
     try:
         # Download posts of the given username
         print(f"Downloading posts from @{username}...")
-        loader.download_profile(username, profile_pic=False, posts=True)
+        loader.download_profile(username, profile_pic=False, download_stories=False)
         print(f"Download complete. Posts saved in the current directory.")
         return f"./{username}"  # Folder path of the downloaded content
     except Exception as e:
