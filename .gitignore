@@ -6,3 +6,5 @@ lib64
 venv
 pyvenv.cfg
 last_post_id.txt
+instadram.log
+last_post_date.txt
