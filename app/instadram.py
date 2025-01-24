@@ -10,6 +10,7 @@ import random
 import re
 import requests
 import shutil
+import sys
 import traceback
 
 # File to store the last downloaded post ID
@@ -219,40 +220,46 @@ def fileDelHandler(func, path, exc_info):
 
 # Main script
 if __name__ == "__main__":
-    # Get the last downloaded post date
-    last_post_date = get_last_post_date()
-    logging.info(f"Last downloaded post date: {last_post_date} - obj {isinstance(last_post_date, datetime)}")
 
-    # Step 1: Download Instagram posts
-    download_new_posts(instagram_username)
+    try:
+        # Get the last downloaded post date
+        last_post_date = get_last_post_date()
+        logging.info(f"Last downloaded post date: {last_post_date} - obj {isinstance(last_post_date, datetime)}")
 
-    # Step 2: Parse Instagram data
-    posts = build_post_array('./'+instagram_username)
-    logging.debug('array built')
-    posts.sort(key=postDate)
+        # Step 1: Download Instagram posts
+        download_new_posts(instagram_username)
 
-    logging.debug('posts sorted')
-    logging.debug(posts)
+        # Step 2: Parse Instagram data
+        posts = build_post_array('./'+instagram_username)
+        logging.debug('array built')
+        posts.sort(key=postDate)
 
-    # Step 3: Upload to WordPress & cleanup
-    if posts:
-        new_posts_processed = 0
+        logging.debug('posts sorted')
+        logging.debug(posts)
 
-        credentials = f"{wp_username}:{wp_application_password}"
-        token = base64.b64encode(credentials.encode())
-        authheaders = {"Authorization": f"Basic {token.decode('utf-8')}"}
+        # Step 3: Upload to WordPress & cleanup
+        if posts:
+            new_posts_processed = 0
 
-        distilleries = fetch_distilleries(authheaders)
-        for post in posts:
-            upload_to_wordpress(post, wordpress_url, authheaders)
-            last_post_date = datetime.strptime(post['fname'].rsplit('.', 1)[0], "%Y-%m-%d_%H-%M-%S_UTC")
-            new_posts_processed += 1
+            credentials = f"{wp_username}:{wp_application_password}"
+            token = base64.b64encode(credentials.encode())
+            authheaders = {"Authorization": f"Basic {token.decode('utf-8')}"}
 
-            if POSTS_PER_INVOKE > 0 and new_posts_processed >= POSTS_PER_INVOKE:
-                break
-        
-        save_last_post_date(last_post_date)
+            distilleries = fetch_distilleries(authheaders)
+            for post in posts:
+                upload_to_wordpress(post, wordpress_url, authheaders)
+                last_post_date = datetime.strptime(post['fname'].rsplit('.', 1)[0], "%Y-%m-%d_%H-%M-%S_UTC")
+                new_posts_processed += 1
 
-        cleanupFiles('./'+instagram_username)
-    else:
-        logging.warning("No posts found to upload.")
+                if POSTS_PER_INVOKE > 0 and new_posts_processed >= POSTS_PER_INVOKE:
+                    break
+            
+            save_last_post_date(last_post_date)
+
+            cleanupFiles('./'+instagram_username)
+        else:
+            logging.warning("No posts found to upload.")
+
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(42)
