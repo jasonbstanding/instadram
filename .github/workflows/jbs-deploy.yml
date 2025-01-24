@@ -30,18 +30,35 @@ jobs:
         # Limit fetch depth for better security and performance
         fetch-depth: 1
 
-    - name: Setup SSH
-      uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-    
+    - name: Setup SSH Keys
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+
+        # Dynamically fetch and add the known host key
+        ssh-keyscan -t ed25519 $REMOTE_HOST >> ~/.ssh/known_hosts
+        chmod 600 ~/.ssh/known_hosts          
+
+        
     - name: Deploy to Server
       env:
         REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
         REMOTE_USER: ${{ secrets.REMOTE_USER }}
         REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
       run: |
-        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
+        # Add error handling
+        set -e
+
+        # Validate remote path exists
+        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST "[ -d $REMOTE_PATH ]"
+
+        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST << EOF
+
           # Navigate to the project directory
           cd ${REMOTE_PATH}
           
