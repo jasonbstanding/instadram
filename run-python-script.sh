@@ -13,13 +13,13 @@ PROJECT_DIR="${PROJECT_DIR:-/home/jbscomssh/instadram}"
 cd $PROJECT_DIR
 
 # Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
+if [ ! -f "pyvenv.cfg" ]; then
     echo "Creating venv..."
-    python3 -m venv venv
+    python3 -m venv .
 fi
 
 # Activate virtual environment
-source venv/bin/activate
+source bin/activate
 
 # Upgrade pip
 pip install --upgrade pip
