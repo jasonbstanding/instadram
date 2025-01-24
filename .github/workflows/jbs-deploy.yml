@@ -1,0 +1,53 @@
+name: Deploy Python script to Prod
+
+# Limit permissions to only what's needed
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+
+    # Prevent concurrent deployments
+    concurrency: 
+      group: production_deploy
+      cancel-in-progress: true
+    
+    # Optional: Add environment protection rules
+    environment:
+      name: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Limit fetch depth for better security and performance
+        fetch-depth: 1
+
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    
+    - name: Deploy to Server
+      env:
+        REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+        REMOTE_USER: ${{ secrets.REMOTE_USER }}
+        REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+      run: |
+        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
+          # Navigate to the project directory
+          cd ${REMOTE_PATH}
+          
+          # Pull the latest code
+          git pull origin main
+          
+          # Run the deployment script
+          ./run-python-script.sh
+        EOF
