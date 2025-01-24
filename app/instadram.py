@@ -68,8 +68,9 @@ def save_last_post_date(post_date):
 def download_new_posts(username):
     """Download only new Instagram posts."""
     loader = instaloader.Instaloader()
-    logging.info(f"Logging in...")
-    loader.login(username, os.getenv("INSTA_PASSWORD"))
+    loader.load_session_from_file(username)
+    # logging.info(f"Logging in...")
+    # loader.login(username, os.getenv("INSTA_PASSWORD"))
 
     global last_post_date
 
