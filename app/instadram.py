@@ -26,7 +26,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("instadram.log"),
+        logging.FileHandler("logs/instadram.log"),
         logging.StreamHandler()
     ]
 )
@@ -40,17 +40,17 @@ wp_application_password = os.getenv("WP_PASS")
 # Initialize variables
 last_post_date = None
 
-def extractfiles(path):
-    for file in os.listdir(path):
-        if file.endswith(".xz"):
-            input_file = os.path.join(path, file)
-            output_file = os.path.join(path, file[:-3])  # Remove .xz extension
+# def extractfiles(path):
+#     for file in os.listdir(path):
+#         if file.endswith(".xz"):
+#             input_file = os.path.join(path, file)
+#             output_file = os.path.join(path, file[:-3])  # Remove .xz extension
 
-            with lzma.open(input_file, "rb") as compressed_file:
-                with open(output_file, "wb") as decompressed_file:
-                    decompressed_file.write(compressed_file.read())
+#             with lzma.open(input_file, "rb") as compressed_file:
+#                 with open(output_file, "wb") as decompressed_file:
+#                     decompressed_file.write(compressed_file.read())
 
-            logging.info(f"Decompressed {input_file}")
+#             logging.info(f"Decompressed {input_file}")
 
 
 def get_last_post_date():
