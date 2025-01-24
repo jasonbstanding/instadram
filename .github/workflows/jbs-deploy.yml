@@ -55,7 +55,7 @@ jobs:
         set -e
 
         # Validate remote path exists
-        ssh -vvv -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST "[ -d $REMOTE_PATH ]"
+        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST "[ -d $REMOTE_PATH ]"
 
         ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST << EOF
 
