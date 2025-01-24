@@ -68,6 +68,6 @@ jobs:
         --include="*.txt" \
         --exclude="*" ./ $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/
 
-        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST "chmod +x run-python-script.sh"
+        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST "cd $REMOTE_PATH && chmod +x run-python-script.sh"
 
-        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST ./run-python-script.sh
+        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST "cd $REMOTE_PATH && ./run-python-script.sh"
