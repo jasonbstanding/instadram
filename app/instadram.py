@@ -3,8 +3,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 import instaloader
 from instaloader import Profile
+import keyring
 import logging
-import lzma
 import os
 import random
 import re
@@ -24,7 +24,7 @@ load_dotenv(override=True)
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("logs/instadram.log"),
@@ -69,6 +69,8 @@ def save_last_post_date(post_date):
 def download_new_posts(username):
     """Download only new Instagram posts."""
     loader = instaloader.Instaloader()
+    loader.login(username, os.getenv("INSTA_PASSWORD"))
+
     global last_post_date
 
     try:
