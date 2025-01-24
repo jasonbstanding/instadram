@@ -57,14 +57,15 @@ jobs:
         # Validate remote path exists
         ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST "[ -d $REMOTE_PATH ]"
 
-        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST << EOF
+        # Deploy only specific file types
+        rsync -avz -e "ssh -i ~/.ssh/deploy_key" --exclude=".git" \
+        --exclude=".github" \
+        --exclude=".gitignore" \
+        --include="*/" \
+        --include="*.py" \
+        --include="*.md" \
+        --include="*.sh" \
+        --include="*.txt" \
+        --exclude="*" ./ $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/
 
-          # Navigate to the project directory
-          cd ${REMOTE_PATH}
-          
-          # Pull the latest code
-          git pull origin main
-          
-          # Run the deployment script
-          ./run-python-script.sh
-        EOF
+        ssh -i ~/.ssh/deploy_key $REMOTE_USER@$REMOTE_HOST ./run-python-script.sh
