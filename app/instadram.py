@@ -66,6 +66,8 @@ def save_last_post_date(post_date):
         file.write(post_date.strftime('%Y-%m-%d %H:%M:%S'))
 
 def download_new_posts(username):
+    os.environ['https_proxy'] = "https://sp2178jfc3:rf99ezswYS4aXk+S4c@gate.smartproxy.com:10001"
+    
     """Download only new Instagram posts."""
     loader = instaloader.Instaloader()
     loader.load_session_from_file(username)
