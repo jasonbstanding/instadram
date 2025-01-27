@@ -66,7 +66,6 @@ def save_last_post_date(post_date):
         file.write(post_date.strftime('%Y-%m-%d %H:%M:%S'))
 
 def download_new_posts(username):
-    os.environ['https_proxy'] = "https://sp2178jfc3:rf99ezswYS4aXk+S4c@gate.smartproxy.com:10001"
     
     """Download only new Instagram posts."""
     loader = instaloader.Instaloader()
@@ -226,6 +225,8 @@ def fileDelHandler(func, path, exc_info):
 # Main script
 if __name__ == "__main__":
 
+    os.environ['https_proxy'] = "https://sp2178jfc3:rf99ezswYS4aXk+S4c@gate.smartproxy.com:10001"
+
     try:
         # Get the last downloaded post date
         last_post_date = get_last_post_date()
@@ -268,3 +269,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(42)
+
+    finally:
+        os.environ['https_proxy'] = None
+
