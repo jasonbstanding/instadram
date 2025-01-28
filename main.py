@@ -12,8 +12,8 @@ import shutil
 import sys
 import traceback
 
-# File to store the last downloaded post ID
-LAST_POST_FILE = "last_post_date.txt"
+# File & path to store the last downloaded post ID
+LAST_POST_FILE = "/instadram/data/last_post_date.txt"
 
 # How many posts to pull down each time - 0 for all
 POSTS_PER_INVOKE = 20
@@ -26,7 +26,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("logs/instadram.log"),
+        logging.FileHandler("/instadram/logs/instadram.log"),
         logging.StreamHandler()
     ]
 )
@@ -69,7 +69,7 @@ def download_new_posts(username):
     
     """Download only new Instagram posts."""
     loader = instaloader.Instaloader()
-    loader.load_session_from_file(username)
+    # loader.load_session_from_file(username)
     # logging.info(f"Logging in...")
     # loader.login(username, os.getenv("INSTA_PASSWORD"))
 
@@ -225,8 +225,6 @@ def fileDelHandler(func, path, exc_info):
 # Main script
 if __name__ == "__main__":
 
-    os.environ['https_proxy'] = "https://sp2178jfc3:rf99ezswYS4aXk+S4c@gate.smartproxy.com:10001"
-
     try:
         # Get the last downloaded post date
         last_post_date = get_last_post_date()
@@ -262,7 +260,7 @@ if __name__ == "__main__":
             
             save_last_post_date(last_post_date)
 
-            cleanupFiles('./'+instagram_username)
+            cleanupFiles('/instadram/bstandingwhisky')
         else:
             logging.warning("No posts found to upload.")
 
@@ -271,5 +269,5 @@ if __name__ == "__main__":
         sys.exit(42)
 
     finally:
-        os.environ['https_proxy'] = None
-
+        # os.environ['https_proxy'] = ""
+        print("Done")
