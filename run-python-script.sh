@@ -28,7 +28,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Run the Python script
-python app/instadram.py
+python ./main.py
 
 # Deactivate virtual environment
 deactivate

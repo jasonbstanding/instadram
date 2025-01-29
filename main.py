@@ -13,7 +13,7 @@ import sys
 import traceback
 
 # File & path to store the last downloaded post ID
-LAST_POST_FILE = "/instadram/data/last_post_date.txt"
+LAST_POST_FILE = "./data/last_post_date.txt"
 
 # How many posts to pull down each time - 0 for all
 POSTS_PER_INVOKE = 20
@@ -26,7 +26,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("/instadram/logs/instadram.log"),
+        logging.FileHandler("./logs/instadram.log"),
         logging.StreamHandler()
     ]
 )
@@ -168,7 +168,7 @@ def upload_to_wordpress(post, wordpress_url, authheaders):
                     json=post_data,
                 )
                 if post_response.status_code == 201:
-                    logging.info(f"Post uploaded: {post_response.json().get('link')}")
+                    logging.info(f"Post uploaded: {datetime.strptime(post['fname'].rsplit('.', 1)[0], "%Y-%m-%d_%H-%M-%S_UTC")} {post_response.json().get('link')}")
                 else:
                     logging.error(f"Failed to create post: {post_response.status_code} - {post_response.text}")
                     # print(f"Failed to create post: {post_response.status_code}")
@@ -260,7 +260,7 @@ if __name__ == "__main__":
             
             save_last_post_date(last_post_date)
 
-            cleanupFiles('/instadram/bstandingwhisky')
+            cleanupFiles('./bstandingwhisky')
         else:
             logging.warning("No posts found to upload.")
 
