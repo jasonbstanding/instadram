@@ -12,8 +12,8 @@ import shutil
 import sys
 import traceback
 
-# File to store the last downloaded post ID
-LAST_POST_FILE = "last_post_date.txt"
+# File & path to store the last downloaded post ID
+LAST_POST_FILE = "./data/last_post_date.txt"
 
 # How many posts to pull down each time - 0 for all
 POSTS_PER_INVOKE = 20
@@ -26,7 +26,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("logs/instadram.log"),
+        logging.FileHandler("./logs/instadram.log"),
         logging.StreamHandler()
     ]
 )
@@ -39,19 +39,6 @@ wp_application_password = os.getenv("WP_PASS")
 
 # Initialize variables
 last_post_date = None
-
-# def extractfiles(path):
-#     for file in os.listdir(path):
-#         if file.endswith(".xz"):
-#             input_file = os.path.join(path, file)
-#             output_file = os.path.join(path, file[:-3])  # Remove .xz extension
-
-#             with lzma.open(input_file, "rb") as compressed_file:
-#                 with open(output_file, "wb") as decompressed_file:
-#                     decompressed_file.write(compressed_file.read())
-
-#             logging.info(f"Decompressed {input_file}")
-
 
 def get_last_post_date():
     """Read the last post date from the file."""
@@ -69,9 +56,6 @@ def download_new_posts(username):
     
     """Download only new Instagram posts."""
     loader = instaloader.Instaloader()
-    loader.load_session_from_file(username)
-    # logging.info(f"Logging in...")
-    # loader.login(username, os.getenv("INSTA_PASSWORD"))
 
     global last_post_date
 
@@ -136,6 +120,7 @@ def upload_to_wordpress(post, wordpress_url, authheaders):
                     datet = match.group(3) + f"T{random.randint(0, 23):02d}:{random.randint(0, 59):02d}" + ":00"
 
                     distillery_name = find_distillery_by_name(distilleries, remaining_text)
+                    bottler_name = find_bottler_by_name(bottlers, remaining_text)
 
                     post_data = {
                         "title": remaining_text,
@@ -146,6 +131,9 @@ def upload_to_wordpress(post, wordpress_url, authheaders):
 
                     if distillery_name:
                         post_data["distillery"] = distillery_name
+
+                    if bottler_name:
+                        post_data["bottler"] = bottler_name
 
                     if hashtag == "in":
                         post_data["date_bought"] = date
@@ -168,13 +156,11 @@ def upload_to_wordpress(post, wordpress_url, authheaders):
                     json=post_data,
                 )
                 if post_response.status_code == 201:
-                    logging.info(f"Post uploaded: {post_response.json().get('link')}")
+                    logging.info(f"Post uploaded: {datetime.strptime(post['fname'].rsplit('.', 1)[0], "%Y-%m-%d_%H-%M-%S_UTC")} {post_response.json().get('link')}")
                 else:
                     logging.error(f"Failed to create post: {post_response.status_code} - {post_response.text}")
-                    # print(f"Failed to create post: {post_response.status_code}")
             else:
                 logging.error(f"Failed to upload media: {media_response.status_code} - {media_response.text}")
-                # print(f"Failed to upload media: {media_response.status_code}")
     except Exception as e:
         logging.error(f"An error occurred: {e}")
 
@@ -212,6 +198,41 @@ def find_distillery_by_name(distilleries, search_string):
 
     return ""
 
+def fetch_bottlers(authheaders):
+    """
+    Fetch the list of bottlers from the custom API endpoint.
+    Returns a list of bottler objects.
+    """
+    try:
+        bottlers_endpoint = f"{wordpress_url}/wp-json/whisky-bottle/v1/bottlers"
+        response = requests.get(bottlers_endpoint, headers=authheaders)
+
+        if response.status_code != 200:
+            print(f"Error retrieving bottlers: {response.status_code} - {response.text}")
+            return []
+
+        # Return the list of bottlers
+        return response.json()
+
+    except Exception as e:
+        print(f"An error occurred while fetching bottlers: {e}")
+        return []
+
+def find_bottler_by_name(bottlers, search_string):
+    """
+    Search the list of bottlers for a partial match in the search string.
+    Returns the first matching bottler name or empty string
+    """
+    search_string_lower = search_string.lower()
+
+    for bottler in bottlers:
+        bottler_name = bottler.get("name", "").lower()
+        if bottler_name in search_string_lower:
+            return bottler_name
+
+    return ""
+
+
 def postDate(e):
   return e['fname']
 
@@ -224,8 +245,6 @@ def fileDelHandler(func, path, exc_info):
 
 # Main script
 if __name__ == "__main__":
-
-    os.environ['https_proxy'] = "https://sp2178jfc3:rf99ezswYS4aXk+S4c@gate.smartproxy.com:10001"
 
     try:
         # Get the last downloaded post date
@@ -252,6 +271,7 @@ if __name__ == "__main__":
             authheaders = {"Authorization": f"Basic {token.decode('utf-8')}"}
 
             distilleries = fetch_distilleries(authheaders)
+            bottlers = fetch_bottlers(authheaders)
             for post in posts:
                 upload_to_wordpress(post, wordpress_url, authheaders)
                 last_post_date = datetime.strptime(post['fname'].rsplit('.', 1)[0], "%Y-%m-%d_%H-%M-%S_UTC")
@@ -262,7 +282,7 @@ if __name__ == "__main__":
             
             save_last_post_date(last_post_date)
 
-            cleanupFiles('./'+instagram_username)
+            cleanupFiles('./bstandingwhisky')
         else:
             logging.warning("No posts found to upload.")
 
@@ -271,5 +291,5 @@ if __name__ == "__main__":
         sys.exit(42)
 
     finally:
-        os.environ['https_proxy'] = None
-
+        # os.environ['https_proxy'] = ""
+        print("Done")
