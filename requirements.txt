@@ -4,7 +4,7 @@ certifi==2024.8.30
 charset-normalizer==3.4.0
 cyclonedx-python-lib==7.6.2
 defusedxml==0.7.1
-filelock==3.16.1
+filelock==3.17.0
 html5lib==1.1
 idna==3.10
 instaloader==4.14
