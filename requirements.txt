@@ -1,8 +1,8 @@
 boolean.py==4.0
 CacheControl==0.14.1
 certifi==2024.8.30
+cyclonedx-python-lib==8.5.1
 charset-normalizer==3.4.1
-cyclonedx-python-lib==7.6.2
 defusedxml==0.7.1
 filelock==3.17.0
 html5lib==1.1
