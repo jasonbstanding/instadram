@@ -1,6 +1,6 @@
 boolean.py==4.0
 CacheControl==0.14.2
-certifi==2024.8.30
+certifi==2025.1.31
 cyclonedx-python-lib==7.6.2
 charset-normalizer==3.4.1
 defusedxml==0.7.1
