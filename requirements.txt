@@ -1,6 +1,6 @@
 boolean.py==4.0
-CacheControl==0.14.1
-certifi==2024.8.30
+CacheControl==0.14.2
+certifi==2025.1.31
 cyclonedx-python-lib==7.6.2
 charset-normalizer==3.4.1
 defusedxml==0.7.1
@@ -8,7 +8,7 @@ filelock==3.17.0
 html5lib==1.1
 idna==3.10
 instaloader==4.14.1
-license-expression==30.4.0
+license-expression==30.4.1
 markdown-it-py==3.0.0
 mdurl==0.1.2
 msgpack==1.1.0
@@ -18,7 +18,7 @@ pip-api==0.0.34
 pip-requirements-parser==32.0.1
 pip_audit==2.7.3
 py-serializable==1.1.2
-Pygments==2.18.0
+Pygments==2.19.1
 pyparsing==3.2.1
 python-dotenv==1.0.1
 requests==2.32.3
@@ -26,5 +26,5 @@ rich==13.9.4
 six==1.17.0
 sortedcontainers==2.4.0
 toml==0.10.2
-urllib3==2.2.3
+urllib3==2.3.0
 webencodings==0.5.1
