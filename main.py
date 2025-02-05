@@ -21,9 +21,13 @@ POSTS_PER_INVOKE = 20
 # Load environment variables from the .env file
 load_dotenv(override=True)
 
+logLevel = logging.INFO
+if os.getenv("LOGLEVEL") == "DEBUG":
+    logLevel = logging.DEBUG
+
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logLevel,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("./logs/instadram.log"),
