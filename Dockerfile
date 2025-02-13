@@ -1,5 +1,7 @@
 FROM python:3-alpine
 
+RUN pip install --upgrade pip
+
 RUN mkdir /instadram
 RUN mkdir /instadram/app
 
