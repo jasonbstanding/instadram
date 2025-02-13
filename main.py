@@ -1,8 +1,8 @@
 import base64
+from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
-import instaloader
-from instaloader import Profile
+import pytumblr
 import logging
 import os
 import random
@@ -10,7 +10,6 @@ import re
 import requests
 import shutil
 import sys
-import traceback
 
 # File & path to store the last downloaded post ID
 LAST_POST_FILE = "./data/last_post_date.txt"
@@ -28,14 +27,14 @@ if os.getenv("LOGLEVEL") == "DEBUG":
 # Configure logging
 logging.basicConfig(
     level=logLevel,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(levelname)s (%(lineno)d)- %(message)s',
     handlers=[
         logging.FileHandler("./logs/instadram.log"),
         logging.StreamHandler()
     ]
 )
 
-instagram_username = os.getenv("INSTA_NAME")
+tumblr_username = os.getenv("TUMBLR_NAME")
 wordpress_url = os.getenv("WP_URL")
 wp_username = os.getenv("WP_USER")
 wp_application_password = os.getenv("WP_PASS")
@@ -43,6 +42,13 @@ wp_application_password = os.getenv("WP_PASS")
 
 # Initialize variables
 last_post_date = None
+
+tumblr_client = pytumblr.TumblrRestClient(
+    os.getenv("TUMBLR_API_KEY"),
+    os.getenv("TUMBLR_SECRET"),
+    "",
+    ""
+)
 
 def get_last_post_date():
     """Read the last post date from the file."""
@@ -56,117 +62,55 @@ def save_last_post_date(post_date):
     with open(LAST_POST_FILE, "w") as file:
         file.write(post_date.strftime('%Y-%m-%d %H:%M:%S'))
 
-def download_new_posts(username):
-    
-    """Download only new Instagram posts."""
-    loader = instaloader.Instaloader()
+def upload_to_wordpress(posts, photos, wordpress_url, authheaders):
+    logging.debug(f"---upload_to_wordpress---")
+    # Iterate Posts
+    #  - upload the image to wordpress
+    #  - create a new post in wordpress using the fields
 
-    global last_post_date
+    iterator = 0
 
-    try:
-        logging.debug(f"Username: {username}")
-        profile = Profile.from_username(loader.context, username)
-
-        # Set post filter to only download posts after the last downloaded post date
-        if last_post_date:
-            logging.debug(f"Fetch all posts after {last_post_date}")
-            loader.download_profiles({profile}, profile_pic=False, stories=False, post_filter=lambda post: post.date_utc > last_post_date)
+    for post in posts:
+        logging.debug(f"Pre-frig: {post}")
+        media_id = None
+        if photos[iterator]:
+            post["image_path"] = photos[iterator]
         else:
-            logging.debug("Fetch all posts")
-            loader.download_profiles({profile}, profile_pic=False, stories=False)
+            logging.debug(f"No image found for post: {post['summary']}")
 
-    except Exception as e:
-        logging.error(f"An error occurred: {traceback.format_exc()}")
+        try:
+            if post["image_path"]:
+                logging.debug(f"Uploading image: {post['image_path']}")
 
-# Parse downloaded Instagram data
-def build_post_array(folder_path):
-    posts_data = []
-    if not os.path.exists(folder_path):
-        logging.warning(f"Folder not found: {folder_path}")
-        return []
+                with open(post["image_path"], "rb") as image_file:
+                    media_response = requests.post(
+                        f"{wordpress_url}/wp-json/wp/v2/media",
+                        headers=authheaders,
+                        files={"file": image_file},
+                    )
+                    if media_response.status_code == 201:
+                        media_id = media_response.json()["id"]
 
-    for root, _, files in os.walk(folder_path):
-        for file in files:
-            if file.endswith('.txt'):
-                with open(os.path.join(root, file), 'r') as txt_file:
-                    post_data = txt_file.readline()
-                    image_path = os.path.join(root, file.replace(".txt", ".jpg"))
-                    if os.path.exists(image_path):
-                        posts_data.append({
-                            "fname": file,
-                            "caption": post_data,
-                            "image_path": image_path,
-                        })
-    return posts_data
+            if media_id:
+                post["featured_media"] = media_id
 
-# Upload to WordPress
-def upload_to_wordpress(post, wordpress_url, authheaders):
-    try:
-        with open(post["image_path"], "rb") as image_file:
-            
-            media_response = requests.post(
-                f"{wordpress_url}/wp-json/wp/v2/media",
+            logging.debug(f"Postfrig: {post}")
+
+            post_response = requests.post(
+                f"{wordpress_url}/wp-json/wp/v2/whisky_bottle",
                 headers=authheaders,
-                files={"file": image_file},
+                json=post,
             )
-            if media_response.status_code == 201:
-                media_id = media_response.json()["id"]
-                # Create WordPress post
-                pattern = r"^#(\w+)\s+(.*)\s+(\d{4}-\d{2}-\d{2})$"
 
-                # Match the pattern
-                match = re.match(pattern, post["caption"])
-
-                if match:
-                    hashtag = match.group(1)
-                    remaining_text = match.group(2)
-                    date = match.group(3)
-                    datet = match.group(3) + f"T{random.randint(0, 23):02d}:{random.randint(0, 59):02d}" + ":00"
-
-                    distillery_name = find_distillery_by_name(distilleries, remaining_text)
-                    bottler_name = find_bottler_by_name(bottlers, remaining_text)
-
-                    post_data = {
-                        "title": remaining_text,
-                        "status": "publish",
-                        "featured_media": media_id,
-                        "date": datet,
-                    }
-
-                    if distillery_name:
-                        post_data["distillery"] = distillery_name
-
-                    if bottler_name:
-                        post_data["bottler"] = bottler_name
-
-                    if hashtag == "in":
-                        post_data["date_bought"] = date
-                    elif hashtag == "open":
-                        post_data["date_opened"] = date
-                    elif hashtag == "out":
-                        post_data["date_finished"] = date
-
-                    logging.info(f"bits {date}")
-                else:
-                    post_data = {
-                        "title": post["caption"],
-                        "status": "draft",
-                        "featured_media": media_id,
-                    }
-
-                post_response = requests.post(
-                    f"{wordpress_url}/wp-json/wp/v2/whisky_bottle",
-                    headers=authheaders,
-                    json=post_data,
-                )
-                if post_response.status_code == 201:
-                    logging.info(f"Post uploaded: {datetime.strptime(post['fname'].rsplit('.', 1)[0], "%Y-%m-%d_%H-%M-%S_UTC")} {post_response.json().get('link')}")
-                else:
-                    logging.error(f"Failed to create post: {post_response.status_code} - {post_response.text}")
+            if post_response.status_code == 201:
+                logging.debug(f"Post uploaded: {post_response.json().get('link')}")
             else:
-                logging.error(f"Failed to upload media: {media_response.status_code} - {media_response.text}")
-    except Exception as e:
-        logging.error(f"An error occurred: {e}")
+                logging.error(f"Failed to create post: {post_response.status_code} - {post_response.text}")
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+        finally:
+            iterator += 1
+
 
 def fetch_distilleries(authheaders):
     """
@@ -178,14 +122,14 @@ def fetch_distilleries(authheaders):
         response = requests.get(distilleries_endpoint, headers=authheaders)
 
         if response.status_code != 200:
-            print(f"Error retrieving distilleries: {response.status_code} - {response.text}")
+            logging.warning(f"Error retrieving distilleries: {response.status_code} - {response.text}")
             return []
 
         # Return the list of distilleries
         return response.json()
 
     except Exception as e:
-        print(f"An error occurred while fetching distilleries: {e}")
+        logging.warning(f"An error occurred while fetching distilleries: {e}")
         return []
 
 def find_distillery_by_name(distilleries, search_string):
@@ -212,14 +156,14 @@ def fetch_bottlers(authheaders):
         response = requests.get(bottlers_endpoint, headers=authheaders)
 
         if response.status_code != 200:
-            print(f"Error retrieving bottlers: {response.status_code} - {response.text}")
+            logging.warning(f"Error retrieving bottlers: {response.status_code} - {response.text}")
             return []
 
         # Return the list of bottlers
         return response.json()
 
     except Exception as e:
-        print(f"An error occurred while fetching bottlers: {e}")
+        logging.warning(f"An error occurred while fetching bottlers: {e}")
         return []
 
 def find_bottler_by_name(bottlers, search_string):
@@ -237,9 +181,6 @@ def find_bottler_by_name(bottlers, search_string):
     return ""
 
 
-def postDate(e):
-  return e['fname']
-
 def cleanupFiles(path):
     shutil.rmtree(path, ignore_errors=False, onexc=fileDelHandler)
 
@@ -247,28 +188,128 @@ def fileDelHandler(func, path, exc_info):
     logging.error(f"Error in cleanup: {exc_info}")
 
 
+
+def parse_captions(posts):
+    logging.debug(f"---parse_captions---")
+    for idx, post in enumerate(posts):
+        logging.debug(f"Before: {post}")
+
+        match = re.match(r"^#(\w+)\s+(.*)\s+(\d{4}-\d{2}-\d{2})$", post['summary'])
+
+        if match:
+            hashtag = match.group(1)
+            remaining_text = match.group(2)
+            date = match.group(3)
+            datet = match.group(3) + f"T{random.randint(0, 23):02d}:{random.randint(0, 59):02d}" + ":00"
+
+            distillery_name = find_distillery_by_name(distilleries, remaining_text)
+            bottler_name = find_bottler_by_name(bottlers, remaining_text)
+
+            post_data = {
+                "title": remaining_text,
+                "status": "publish",
+                "date": datet,
+                "hashtag": hashtag,
+            }
+
+            if distillery_name:
+                post_data["distillery"] = distillery_name
+
+            if bottler_name:
+                post_data["bottler"] = bottler_name
+
+            if hashtag == "in":
+                post_data["date_bought"] = date
+            elif hashtag == "open":
+                post_data["date_opened"] = date
+            elif hashtag == "out":
+                post_data["date_finished"] = date
+
+        else:
+            post_data = {
+                "title": post['summary'],
+                "status": "draft",
+            }
+
+        posts[idx] = post_data
+        logging.debug(f"After: {posts[idx]}")
+
+    return posts
+
+def fetch_images_from_tumblr(photos, tumblr_username):
+    logging.debug(f"---fetch_images_from_tumblr---")
+    for idx, photo in enumerate(photos):
+        if photo:
+            try:
+                response = requests.get(photo)
+                response.raise_for_status()  # Raise an exception for HTTP errors
+            except requests.RequestException as e:
+                logging.warning("Error downloading the image:", e)
+            else:
+                # Save the image to a file (you can change the filename as needed)
+                filename = f'./{tumblr_username}/downloaded_image_{idx}.jpg'
+                with open(filename, 'wb') as f:
+                    f.write(response.content)
+                logging.debug(f"Image successfully downloaded and saved as {filename}")
+                photos[idx] = filename
+
+    return photos
+
+def fetch_posts_from_tumblr(client: pytumblr.TumblrRestClient, blog_name: str, last_post_date: datetime) -> list:
+    logging.debug(f"---fetch_posts_from_tumblr---")
+    posts = []
+    photos = []
+    latest_post_date = None
+
+    # fetches in reverse-chron (i.e newest first)
+    response = client.posts(blog_name, limit=50, offset=0) 
+        
+    for post in response['posts']:
+        post_date = datetime.strptime(post['date'], '%Y-%m-%d %H:%M:%S %Z')
+        if last_post_date is None or post_date > last_post_date:
+            logging.debug(f"Fetched {post_date} - {post['summary']}")
+            posts.append(post)
+            # Parse the HTML with BeautifulSoup
+            soup = BeautifulSoup(post['body'], 'html.parser')
+            # Find the first <img> tag
+            img_tag = soup.find('img')
+            if img_tag and img_tag.get('src'):
+                image_url = img_tag['src']
+                logging.debug(f"Found image URL: {image_url}")
+            else:
+                image_url = None
+                logging.debug(f"No image")
+
+            photos.append(image_url)
+
+            if latest_post_date is None or post_date > latest_post_date:
+                latest_post_date = post_date
+
+        else: # this means the post_date we're now looking at was prior to the stored last_post_date, which we have already downloaded up to
+            logging.debug(f"{last_post_date} reached - Skipped from {post_date} - {post['summary']}")
+            break
+
+    return (latest_post_date, posts, photos)
+
 # Main script
 if __name__ == "__main__":
 
     try:
+        latest_post_date = None
+        posts = []
+        photos = []
+
         # Get the last downloaded post date
         last_post_date = get_last_post_date()
         logging.info(f"Last downloaded post date: {last_post_date} - obj {isinstance(last_post_date, datetime)}")
 
-        # Step 1: Download Instagram posts
-        download_new_posts(instagram_username)
+        # Step 1 - download posts from Tumblr
+        # Ensure that we're getting anything timestamped after the last post we downloaded
+        (latest_post_date, posts, photos) = fetch_posts_from_tumblr(tumblr_client, tumblr_username, last_post_date)
 
-        # Step 2: Parse Instagram data
-        posts = build_post_array('./'+instagram_username)
-        logging.debug('array built')
-        posts.sort(key=postDate)
-
-        logging.debug('posts sorted')
-        logging.debug(posts)
-
-        # Step 3: Upload to WordPress & cleanup
         if posts:
             new_posts_processed = 0
+            os.makedirs(tumblr_username, exist_ok=True)
 
             credentials = f"{wp_username}:{wp_application_password}"
             token = base64.b64encode(credentials.encode())
@@ -276,24 +317,21 @@ if __name__ == "__main__":
 
             distilleries = fetch_distilleries(authheaders)
             bottlers = fetch_bottlers(authheaders)
-            for post in posts:
-                upload_to_wordpress(post, wordpress_url, authheaders)
-                last_post_date = datetime.strptime(post['fname'].rsplit('.', 1)[0], "%Y-%m-%d_%H-%M-%S_UTC")
-                new_posts_processed += 1
 
-                if POSTS_PER_INVOKE > 0 and new_posts_processed >= POSTS_PER_INVOKE:
-                    break
-            
-            save_last_post_date(last_post_date)
+            posts = parse_captions(posts)
 
-            cleanupFiles('./bstandingwhisky')
-        else:
-            logging.warning("No posts found to upload.")
+            photos = fetch_images_from_tumblr(photos, tumblr_username)
+
+            upload_to_wordpress(posts, photos, wordpress_url, authheaders)
+
+            # Step 3 - save the timestamp of the last post we uploaded
+            save_last_post_date(latest_post_date)
+
+            cleanupFiles(f'./{tumblr_username}')
 
     except Exception as e:
-        print(f"Error: {e}")
+        logging.error(f"Error: {e}")
         sys.exit(42)
 
     finally:
-        # os.environ['https_proxy'] = ""
         print("Done")
