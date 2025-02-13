@@ -273,9 +273,38 @@ def fetch_posts_from_tumblr(client: pytumblr.TumblrRestClient, blog_name: str, l
             soup = BeautifulSoup(post['body'], 'html.parser')
             # Find the first <img> tag
             img_tag = soup.find('img')
-            if img_tag and img_tag.get('src'):
-                image_url = img_tag['src']
+            if img_tag:
+                image_url = None
+
+                # If the tag has a srcset attribute, we'll parse it to find the largest width.
+                if img_tag.has_attr('srcset'):
+                    srcset = img_tag['srcset']
+                    # Each candidate is separated by a comma.
+                    candidates = [candidate.strip() for candidate in srcset.split(',')]
+                    max_width = 0
+                    
+                    for candidate in candidates:
+                        # Each candidate is in the form: "<url> <descriptor>"
+                        parts = candidate.split()
+                        if len(parts) >= 2:
+                            url = parts[0]
+                            descriptor = parts[1]
+                            # We assume the descriptor is something like "1152w"
+                            try:
+                                width = int(descriptor.rstrip('w'))
+                                if width > max_width:
+                                    max_width = width
+                                    image_url = url
+                            except ValueError:
+                                # If the conversion fails, skip this candidate
+                                continue
+
+                # If no srcset is found or parsing fails, fall back to the 'src' attribute.
+                if not image_url and img_tag.has_attr('src'):
+                    image_url = img_tag['src']
+
                 logging.debug(f"Found image URL: {image_url}")
+            
             else:
                 image_url = None
                 logging.debug(f"No image")
