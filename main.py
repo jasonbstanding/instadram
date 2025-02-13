@@ -267,6 +267,7 @@ def fetch_posts_from_tumblr(client: pytumblr.TumblrRestClient, blog_name: str, l
     for post in response['posts']:
         post_date = datetime.strptime(post['date'], '%Y-%m-%d %H:%M:%S %Z')
         if last_post_date is None or post_date > last_post_date:
+            logging.debug(f"Fetched {post_date} - {post['summary']}")
             posts.append(post)
             # Parse the HTML with BeautifulSoup
             soup = BeautifulSoup(post['body'], 'html.parser')
@@ -285,6 +286,7 @@ def fetch_posts_from_tumblr(client: pytumblr.TumblrRestClient, blog_name: str, l
                 latest_post_date = post_date
 
         else: # this means the post_date we're now looking at was prior to the stored last_post_date, which we have already downloaded up to
+            logging.debug(f"{last_post_date} reached - Skipped from {post_date} - {post['summary']}")
             break
 
     return (latest_post_date, posts, photos)
