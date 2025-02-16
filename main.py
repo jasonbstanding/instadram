@@ -36,8 +36,10 @@ logging.basicConfig(
 
 tumblr_username = os.getenv("TUMBLR_NAME")
 wordpress_url = os.getenv("WP_URL")
-wp_username = os.getenv("WP_USER")
-wp_application_password = os.getenv("WP_PASS")
+wp_jwt = os.getenv("WP_JWT", None)
+# fallback to Application Password if no JWT is provided
+wp_username = os.getenv("WP_USER", None)
+wp_application_password = os.getenv("WP_PASS", None)
 
 
 # Initialize variables
@@ -62,7 +64,7 @@ def save_last_post_date(post_date):
     with open(LAST_POST_FILE, "w") as file:
         file.write(post_date.strftime('%Y-%m-%d %H:%M:%S'))
 
-def upload_to_wordpress(posts, photos, wordpress_url, authheaders):
+def upload_to_wordpress(posts, photos, wordpress_url, headers):
     logging.debug(f"---upload_to_wordpress---")
     # Iterate Posts
     #  - upload the image to wordpress
@@ -85,7 +87,7 @@ def upload_to_wordpress(posts, photos, wordpress_url, authheaders):
                 with open(post["image_path"], "rb") as image_file:
                     media_response = requests.post(
                         f"{wordpress_url}/wp-json/wp/v2/media",
-                        headers=authheaders,
+                        headers=headers,
                         files={"file": image_file},
                     )
                     if media_response.status_code == 201:
@@ -98,7 +100,7 @@ def upload_to_wordpress(posts, photos, wordpress_url, authheaders):
 
             post_response = requests.post(
                 f"{wordpress_url}/wp-json/wp/v2/whisky_bottle",
-                headers=authheaders,
+                headers=headers,
                 json=post,
             )
 
@@ -340,18 +342,24 @@ if __name__ == "__main__":
             new_posts_processed = 0
             os.makedirs(tumblr_username, exist_ok=True)
 
-            credentials = f"{wp_username}:{wp_application_password}"
-            token = base64.b64encode(credentials.encode())
-            authheaders = {"Authorization": f"Basic {token.decode('utf-8')}"}
+            headers = {"User-Agent": "curl/8.5.0"}
+            if wp_jwt:
+                headers["Authorization"] = f"Bearer {wp_jwt}"
+            else:
+                credentials = f"{wp_username}:{wp_application_password}"
+                token = base64.b64encode(credentials.encode())
+                headers["Authorization"] = f"Basic {token.decode('utf-8')}"
 
-            distilleries = fetch_distilleries(authheaders)
-            bottlers = fetch_bottlers(authheaders)
+            logging.debug(f"Headers: {headers}")
+
+            distilleries = fetch_distilleries(headers)
+            bottlers = fetch_bottlers(headers)
 
             posts = parse_captions(posts)
 
             photos = fetch_images_from_tumblr(photos, tumblr_username)
 
-            upload_to_wordpress(posts, photos, wordpress_url, authheaders)
+            upload_to_wordpress(posts, photos, wordpress_url, headers)
 
             # Step 3 - save the timestamp of the last post we uploaded
             save_last_post_date(latest_post_date)
